@@ -261,6 +261,7 @@ class ReadData:
             newdata = geopandas.GeoDataFrame(geometry=PL)
             newdata.to_file(os.path.join(results_dir,f"{fprefix}_full_network.shp"))
     
+        print("Shapefiles saved in results folder")
 
     ## this function plots a set of nodes.
     def plot_nodexy(self,nodes):
@@ -1924,5 +1925,6 @@ if __name__=="__main__":
 
 
     if save_solution_map:
+        print("Going to save solution map in results folder")
         data.generate_solution_shapefile(task)
 
