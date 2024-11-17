@@ -44,6 +44,47 @@ la_dir = os.path.join(picdir,"la_network")
 regina_dir = os.path.join(picdir,"regina_network")
 results_dir = os.path.join(pdir,"results")
 lp_file_dir = os.path.join(pdir,"lp_files")
+lpdir = lp_file_dir
+nodefile_dir = lp_file_dir
+
+
+class create_task:
+    LA_CLUSTERS = 7
+    REGINA_CLUSTERS = 10
+    ALGO_MAPPER = {"M1":"basicnored",
+                    "M2":"basic",
+                    "M3":"oneshot",
+                    "M4":"contextwithlb"}
+
+    LA_ZONE_MAPPER = {0:0,
+                      1:2,
+                      2:1}      
+    
+    REGINA_ZONE_MAPPER = {1:1,  
+                          2:4,
+                          3:5,
+                          4:8,
+                          5:9}  
+
+    def __init__(self,inst_name: str,task: list):
+        self.inst_name=inst_name
+        self.task=task
+        self._generate_task()
+    
+    def _generate_task(self):
+        self.new_task = [create_task.ALGO_MAPPER[self.task[0]],self.task[1],self.task[2]]
+        if self.inst_name=="LA" and len(self.task)==4:
+            self.new_task.append(create_task.LA_CLUSTERS)
+            new_zones = [create_task.LA_ZONE_MAPPER[i] for i in self.task[3]]
+            self.new_task.append(new_zones)
+        if self.inst_name=="regina" and len(self.task)==4:
+            self.new_task.append(create_task.REGINA_CLUSTERS)
+            new_zones = [create_task.REGINA_ZONE_MAPPER[i] for i in self.task[3]]
+            self.new_task.append(new_zones)
+            
+    def get_task(self):
+        return self.new_task
+
 
 class global_params:
     """
@@ -2070,36 +2111,21 @@ if __name__=="__main__":
     M4: problem solved with all reduction techniques and acceleration techniques.
     
     Task description is as follows: (4th and 5th index is only provided for "flow_clus" model).
-    task[0]: strategy - "oneshot", "lazyrej", "benders"
-    task[1]: model - "flow", "flow_clus"
-    task[2]: S - number of sensors
-    task[3]: number of clusters for "flow_clus" model
-    task[4]: target zone for "flow_clus" model
+    orig_task[0]: strategy - M1, M2, M3, M4
+    orig_task[1]: model - "flow", "flow_clus"
+    orig_task[2]: S - number of sensors (any number more than 10, below that may make the problem infeasible)
+    orig_task[3]: target zone for "flow_clus" model. For LA, it can be either of 0,1,2. For regina, it can be either of 1,2,3,4,5.
+            target zone must be passed as a list. For example, to run for Zone 3 of regina, orig_task[3] must be [3]
+
+    For example, inst_name = "regina" and orig_task = ["M4","flow_clus",20,[2]] will run the M4 strategy for flow_clus model with 20 sensors for regina with target Zone 2.
     '''
 
-    ## -1) basicnored: no VI's or extrareduction
-    ## 0) basic: no VI's
-    ## 1) oneshot: has VI's
-    ## 2) lazyrej: has VI's but uses lazy constraints to reject solution
-    ## 3) contextwithlb: has VI's use context callback and binary search for lb
-    ## 4) context: has VI's and additional VI's through context callback
-    ## 5) contextrej: has implementation of lazyrej using context callback
-    ## 6) lazynew: has VI's and additional VI's through lazy callback (identical to context)
-    ## 7) oneshotwithlb: oneshot plus lb
-    ## 8) lazynewwithlb: lazynew plus lb
-
-
-    inst_name = "LA"
-    task = ["M4","flow",20]
-
-    algo_mapper = {"M1":"basicnored",
-                    "M2":"basic",
-                    "M3":"oneshot",
-                    "M4":"contextwithlb"}
-
     
-    lpdir = lp_file_dir
-    nodefile_dir=lp_file_dir
+    inst_name = "regina"
+    orig_task = ["M4","flow_clus",20,[3]]
+
+    task_generator = create_task(inst_name,orig_task)
+    task = task_generator.get_task()
     
     print(f"Processing task {task}, {inst_name}")
 
@@ -2110,7 +2136,6 @@ if __name__=="__main__":
     else:
         base = 0
 
-    task[0] = algo_mapper[task[0]]
 
     if "lb" in task[0]:
         if "clus" in task[1]:
