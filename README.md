@@ -41,15 +41,16 @@ Instructions for running the codes for the paper titles "An Optimization Approac
 2. flow_covering_model_code.py: contains all the functions needed to solve the flow covering model for biosurveillance in wastewater networks. The code is designed to work with two instances: "LA" (Los Angeles) and "regina" (Regina). For "LA", the number of clusters is fixed to 7, and for "regina", the number of clusters is fixed to 10.
 
 **How to Run**
-To run the code, you need to modify the orig_task list and provide inst_name. These parameters take the following values:
 
-inst_name: either "LA" or "regina".
-orig_task[0]: Algorithm type (e.g., "M1", "M2", "M3", "M4") - refer to the paper (a brief description also available in the code)
-orig_task[1]: "flow" or "flow_clus". "flow" solves for the whole network. "flow_clus" solves for a small cluster of the network.
-orig_task[2]: integer value representing number of sensors to locate
-orig_task[3]: (Optional) A list of zone indices. This is not optional if "flow_clus" is selected. Zones are 0, 1, 2 for LA, and 1, 2, 3, 4, 5 for Regina.
+To run the code, you need to modify the orig_task list and provide inst_name. These parameters take the following values:
+1. inst_name: either "LA" or "regina".
+2. orig_task[0]: Algorithm type (e.g., "M1", "M2", "M3", "M4") - refer to the paper (a brief description also available in the code)
+3. orig_task[1]: "flow" or "flow_clus". "flow" solves for the whole network. "flow_clus" solves for a small cluster of the network.
+4. orig_task[2]: integer value representing number of sensors to locate
+5. orig_task[3]: (Optional) A list of zone indices. This is not optional if "flow_clus" is selected. Zones are 0, 1, 2 for LA, and 1, 2, 3, 4, 5 for Regina.
 
 Example: orig_task = ["M1", "flow", 20], ["M4","flow_clus",100,[2]]
 
 **To save solution map for figures**
+
 Must have done a successful run first and files must be present in results folder. To save solution maps, change the value of save_solution_map to True and run the code with the inst_name and orig_task. At the end, the code will generate two sets of shapefiles in the results folder: one for the solution network, another for the full network it worked on. These shapefiles can be uploaded to ArcGIS software to plot the maps.
