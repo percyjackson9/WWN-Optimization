@@ -1,0 +1,1 @@
+This folder will contain lp files generated for each run and may occasionally store node files. It is safe to delete any lp file after a run is complete. Always keep this information file in the directory so that the folder remains.
