@@ -212,64 +212,55 @@ class ReadData:
                 raise Exception("Number of clusters is provided, but target is empty. Please re-run with target as a list of areas.")
             
         self.base=base
-        if name=="test":
-            self.get_test_data()
+        
         if name=="LA":
+            print("Getting LA")
             self.get_LA_network()
         if name=="regina":
-            print("getting regina")
+            print("Getting regina")
             self.get_regina_network()
-        if "random" in name:
-            ## seed: random state, must fix to 1.
-            ## create_using: must be nx.DiGraph, and defaults to graph rooted at 0.
-            ## this method is not used in any paper dataset.
+        
+    def generate_solution_shapefile(self,task):
+        if len(task)==3:
+            fprefix = f"{self.name}_{task[0]}_{task[1]}_{task[2]}"
+        else:
+            fprefix = f"{self.name}_{task[0]}_{task[1]}_{task[2]}_{task[4]}"
+        filename=f"{fprefix}.csv"
+        try:
+            data=pd.read_csv(os.path.join(results_dir,filename))
+        except FileNotFoundError as e:
+            print("Must have completed the task first: ",e)
+            exit()
 
-            if "tree" in name:
-                print("Random tree instance")
-                m=int(name.split("_")[2])
-                ## random_tree()
-                ## n: number of nodes
-                n=round(m/0.07) ## number of manholes is 7%
-                G=nx.random_tree(n=n,seed=1,create_using=nx.DiGraph)
+                
+        locs=data.Locs.values[0].replace("'"," ")
+        locs=locs.replace("["," ")
+        locs=locs.replace("]"," ")
+        locs=locs.replace(","," ")
+        LOCS=[int(i) for i in locs.split(" ") if len(i)>0]
 
-            if "binomial" in name:
-                print("Random binomial instance")
-                m=int(name.split("_")[2])
-                ## binomial_tree()
-                ## n: order of binomial tree, with 2^n nodes, limit to 20 for now, grows
-                ##    quickly. P.S. no seed needed
-                x=round(m/0.07) ## number of nodes needed for 7% manholes
-                n=round(np.log2(x))
-                G=nx.binomial_tree(n=n,create_using=nx.DiGraph)
+        if inst_name=="LA":
+            f1 = open(os.path.join(la_dir,"LA_new_cord.pickle"), 'rb')
+            node_xy = pickle.load(f1)
+            f1.close()
+        if inst_name=="regina":
+            f1 = open(os.path.join(regina_dir,"regina_all_cord.pickle"), 'rb')
+            node_xy = pickle.load(f1)
+            f1.close()
 
+        PL=[Point(node_xy[i]) for i in LOCS]
+        newdata = geopandas.GeoDataFrame(geometry=PL)
+        newdata.to_file(os.path.join(results_dir,f"{fprefix}_solution.shp"))
 
-            if "fullrary" in name:
-                print("Full rary tree instance")
-                m = int(name.split("_")[2])
-                r = int(name.split("_")[3])
-                ## full_rary_tree()
-                ## n: number of nodes
-                ## r: all non-leaf nodes have exactly r children (in undirected)
-                ## P.S. no seed needed
-                n = round(m / 0.07)  ## number of manholes is 7%
-                G = nx.full_rary_tree(r=r,n=n,create_using=nx.DiGraph)
-
-            if "powerlaw" in name:
-                print("Random powerlaw instance")
-                ## random_powerlaw_tree()
-                ## n: number of nodes
-                ## gamma: exponent of power law, default 3 (keep it as it is)
-                ## P.S. no create_using, always returns Graph instance
-
-
-            if "balanced" in name:
-                print("Balanced tree instance")
-                ## balanced_tree()
-                ## r: each node has r children
-                ## h: height of the tree
-                ## P.S. no seed needed, n=r**h+r**(h-1)+....+r
-
-            self.get_random_data(G)
+        if len(task)==3:
+            PL=[Point(node_xy[i]) for i in node_xy.keys()]
+            newdata = geopandas.GeoDataFrame(geometry=PL)
+            newdata.to_file(os.path.join(results_dir,f"{fprefix}_full_network.shp"))
+        else:
+            PL=[Point(node_xy[i]) for i in node_xy.keys() if self.cluster_select[i]==True]
+            newdata = geopandas.GeoDataFrame(geometry=PL)
+            newdata.to_file(os.path.join(results_dir,f"{fprefix}_full_network.shp"))
+    
 
     ## this function plots a set of nodes.
     def plot_nodexy(self,nodes):
@@ -515,72 +506,6 @@ class ReadData:
 
         return weights, nodes, adj, mnodes, new_edges
 
-
-
-
-    def get_random_data(self,G):
-        print(f"Will process random data for {self.name}")
-        num_m=int(self.name.split("_")[2])
-        np.random.seed(1)
-        adj=nx.to_dict_of_lists(G)
-        mnodes=list(G.nodes)
-        nodes=list(G.nodes)
-        mnodes.remove(self.base)
-        houses = [i for i in G.nodes if adj[i] == []]
-        is_house = {i: False for i in nodes}
-
-        weights = {i: 0 for i in nodes}
-        for i in houses:
-            is_house[i] = True
-            weights[i] = 1
-        edges=list(G.edges)
-        mnodes = [i for i in mnodes if not is_house[i]]
-        dist=nx.shortest_paths.single_source_bellman_ford_path_length(G,self.base)
-
-        t = time.time()
-        cut_set, check = self.dynamic_way(nodes, adj, dist, edges)
-        print("Calculated uncertainties ", time.time() - t)
-
-        wye_set = {}
-        for i in edges:
-            wye_set[i] = [j for j in cut_set[i] if is_house[j]]
-
-        t = time.time()
-        mnode_potentials = collections.defaultdict(int)
-        for i in mnodes:
-            if adj[i] != []:
-                for j in adj[i]:
-                    mnode_potentials[i] += len(wye_set[(i, j)])
-            else:
-                mnode_potentials[i] = 0
-
-        npots = collections.defaultdict(int)
-        for i in nodes:
-            if adj[i] != []:
-                for j in adj[i]:
-                    npots[i] += len(wye_set[i, j])
-            else:
-                npots[i] = 0
-
-
-
-        self.mpots = mnode_potentials.copy()
-        self.npots = npots.copy()
-        self.wye_set = copy.deepcopy(wye_set)
-        self.weights = weights.copy()
-
-        mp = self.mpots.copy()
-        w = self.weights.copy()
-
-        w2, n2, a2, m2, e2 = ReadData.truncate_network_using_edges_fast(nodes, adj, mnodes, self.base, edges, mp, w)
-
-        self.trunc_adj = copy.deepcopy(a2)
-        self.trunc_mnodes = m2[:]
-        self.trunc_weights = w2.copy()
-        self.trunc_nodes = list(self.trunc_adj.keys())
-        self.trunc_edges = [(i, j) for i in self.trunc_nodes for j in self.trunc_adj[i] if self.trunc_adj[i] != []]
-        self.tr_mpots = self.mpots.copy()
-
     def get_los_angeles_clusters(self,noc=7):
         seed=1
         picdir = la_dir
@@ -634,185 +559,6 @@ class ReadData:
             return cluster_label,node_xy
         except Exception as e:
             print("Following exception occured: ",e)
-
-    def get_test_data(self):
-        print("test network")
-        adj = {1: [3],
-               2: [3, 6],
-               3: [1, 2, 4],
-               4: [3, 5, 7],
-               5: [4, 8],
-               6: [2, 10],
-               7: [4, 12],
-               8: [5, 9, 17],
-               9: [8, 13, 18],
-               10: [6, 11, 14],
-               11: [10],
-               12: [7],
-               13: [9],
-               14: [10, 15, 21],
-               15: [14, 16, 26],
-               16: [15, 27],
-               17: [8, 19, 23],
-               18: [9, 20, 24],
-               19: [17],
-               20: [18],
-               21: [14, 25, 28],
-               22: [23, 29],
-               23: [17, 22],
-               24: [18, 33],
-               25: [21],
-               26: [15],
-               27: [16],
-               28: [21, 30],
-               29: [22, 31, 32],
-               30: [28],
-               31: [29],
-               32: [29],
-               33: [24]}
-
-        node_xy = {28: (1, 0), 30: (2, 0), 31: (3, 0), 29: (4, 0), 32: (5, 0), 33: (6, 0),
-                   25: (0, 1), 21: (1, 1), 26: (2, 1), 27: (3, 1), 22: (4, 1), 23: (5, 1), 24: (6, 1),
-                   14: (1, 2), 15: (2, 2), 16: (3, 2), 19: (4, 2), 17: (5, 2), 18: (6, 2), 20: (7, 2),
-                   11: (0, 3), 10: (1, 3), 6: (2, 3), 12: (3, 3), 7: (4, 3), 8: (5, 3), 9: (6, 3),
-                   2: (2, 4), 3: (3, 4), 4: (4, 4), 5: (5, 4), 13: (6, 4),
-                   1: (3, 5)}
-
-        def add_between_line_segments(pt, nodex, ad, x, y, sn, en):
-            ptr = pt
-            for i in range(3):
-                for j in range(3):
-                    nodex[ptr] = (x + 0.5 * j, y + 0.25 * i)
-                    ad[ptr] = []
-                    ptr += 1
-            ptr = pt
-            for i in range(3):
-                for j in range(3):
-                    if j == 0:
-                        ad[ptr].append(ptr + 1)
-                        ad[ptr + 1].append(ptr)
-                    if j == 2:
-                        ad[ptr].append(ptr - 1)
-                        ad[ptr - 1].append(ptr)
-                    if j == 1 and i < 2:
-                        ad[ptr].append(ptr + 3)
-                        ad[ptr + 3].append(ptr)
-                    if j == 1 and i == 2:
-                        ad[ptr].append(en)
-                        ad[en].append(ptr)
-                    if j == 1 and i == 0:
-                        ad[sn].append(ptr)
-                        ad[ptr].append(sn)
-                    ptr += 1
-            ad[en].remove(sn)
-            ad[sn].remove(en)
-            return ad, nodex, ptr
-
-        adj, node_xy, ptr = add_between_line_segments(34, node_xy, adj, 1.5, 1.25, 26, 15)
-        adj, node_xy, ptr = add_between_line_segments(ptr, node_xy, adj, 5.5, 3.25, 9, 13)
-        adj, node_xy, ptr = add_between_line_segments(ptr, node_xy, adj, 5.5, 1.25, 24, 18)
-        adj, node_xy, ptr = add_between_line_segments(ptr, node_xy, adj, 1.5, 3.25, 6, 2)
-        adj, node_xy, ptr = add_between_line_segments(ptr, node_xy, adj, 0.5, 0.25, 28, 21)
-        adj, node_xy, ptr = add_between_line_segments(ptr, node_xy, adj, 0.5, 2.25, 14, 10)
-
-        # ### add a node between 1 and 3
-        # node_xy[ptr] = (3.0, 4.5)
-        # adj[1].append(ptr)
-        # adj[ptr] = [1]
-        # adj[1].remove(3)
-        # adj[3].remove(1)
-        # adj[ptr].append(3)
-        # adj[3].append(ptr)
-        # ptr += 1
-
-        multiplier = 10.0
-        node_xy = {i: (node_xy[i][0] * multiplier, node_xy[i][1] * multiplier) for i in node_xy.keys()}
-        nodes = list(adj.keys())
-
-        base = 1
-        nodes, adj, dist, edges = ReadData.get_directed_rooted_tree(nodes, adj, base)
-        mnodes = [i for i in nodes if len(adj[i]) > 0 and i != base]
-        houses = [i for i in nodes if adj[i] == []]
-        houses.remove(82)
-        mnodes.append(82)
-        houses.remove(31)
-        mnodes.append(31)
-        is_house = {i: False for i in nodes}
-        weights = {i: 0 for i in nodes}
-        for i in houses:
-            is_house[i] = True
-            weights[i] = 1
-        # weights={i:0 for i in nodes}
-
-        # mnodes=[2,4,17,10,15,22,21]
-        to_re = [5,22]
-        mnodes = [i for i in mnodes if i not in to_re]
-        # #weights,n,a=truncate_network(nodes,adj,mnodes,base)
-        # w2,n2,a2,m2,e2=truncate_network_using_edges_v2(nodes,adj,mnodes,base,edges,npots)
-        # target_nodes=[12,19,26,27]
-        # target_nodes=[40,42,37,39,12,13]
-        # target_nodes=[20,33,13]
-        target_nodes = houses[:]
-        # target_nodes.extend(list(range(79,88)))
-        # target_nodes.extend(list(range(52,61)))
-        # target_nodes.extend(list(range(43,52)))
-        # target_nodes=[33]
-        # target_nodes.extend(list(range(79,88)))
-        # target_nodes.extend(list(range(52,61)))
-        target_nodes = [i for i in target_nodes if i not in mnodes]
-        LP = False
-
-
-        self.plot_network(nodes, mnodes,edges,node_xy,[],target_nodes,houses,"before reduction")
-        t = time.time()
-        cut_set, check = self.dynamic_way(nodes, adj, dist, edges)
-        print("Calculated uncertainties ", time.time() - t)
-
-        wye_set = {}
-        for i in edges:
-            wye_set[i] = [j for j in cut_set[i] if is_house[j]]
-
-        t = time.time()
-        mnode_potentials = collections.defaultdict(int)
-        for i in mnodes:
-            if adj[i] != []:
-                for j in adj[i]:
-                    mnode_potentials[i] += len(wye_set[(i, j)])
-            else:
-                mnode_potentials[i] = 0
-
-        npots = collections.defaultdict(int)
-        for i in nodes:
-            if adj[i] != []:
-                for j in adj[i]:
-                    npots[i] += len(wye_set[i, j])
-            else:
-                npots[i] = 0
-
-        self.nodes = nodes[:]
-        self.mnodes=mnodes[:]
-        self.mpots = mnode_potentials.copy()
-        self.npots = npots.copy()
-        self.wye_set = copy.deepcopy(wye_set)
-        self.edges = edges[:]
-        self.weights = weights.copy()
-        self.adj = copy.deepcopy(adj)
-        self.node_xy = copy.deepcopy(node_xy)
-        n = self.nodes[:]
-        a = copy.deepcopy(self.adj)
-        m = self.mnodes[:]
-        e = self.edges[:]
-        mp = self.mpots.copy()
-        w = self.weights.copy()
-
-        w2, n2, a2, m2, e2 = ReadData.truncate_network_using_edges_fast(n, a, m, self.base, e, mp, w)
-        self.plot_network(n2, m2, e2, node_xy, [], target_nodes, houses, "after reduction")
-        self.trunc_adj = copy.deepcopy(a2)
-        self.trunc_mnodes = m2[:]
-        self.trunc_weights = w2.copy()
-        self.trunc_nodes = list(self.trunc_adj.keys())
-        self.trunc_edges = [(i, j) for i in self.trunc_nodes for j in self.trunc_adj[i] if self.trunc_adj[i] != []]
-        self.tr_mpots = self.mpots.copy()
 
     def get_regina_network(self):
         print("Trying to get regina")
@@ -2122,7 +1868,8 @@ if __name__=="__main__":
 
     
     inst_name = "regina"
-    orig_task = ["M4","flow_clus",20,[3]]
+    orig_task = ["M4","flow_clus",20,[1]]
+    save_solution_map = True
 
     task_generator = create_task(inst_name,orig_task)
     task = task_generator.get_task()
@@ -2157,9 +1904,7 @@ if __name__=="__main__":
             gpars = global_params(f"{inst_name}_{task[0]}_{task[1]}_{task[2]}", 7200 - gpars.wst)
         gpars.save_ws_time(wst, new_LB, new_UB)
         f, x = flowCoveringLocationProblem(data, gpars, task, thres=new_LB, new_lb=new_LB, best_inc=new_UB)
-        # selected = [i for i in x.keys() if x[i] > 0]
-        # obj = gpars.prob.solution.get_objective_value()
-
+        
 
     else:
         if "clus" in task[1]:
@@ -2178,49 +1923,6 @@ if __name__=="__main__":
         f, x = flowCoveringLocationProblem(data, gpars, task)
 
 
+    if save_solution_map:
+        data.generate_solution_shapefile(task)
 
-
-    # regina instances
-    # strategies=['basicnored','basic','oneshot','lazyrej','lazynew','contextrej','contextwithlb','oneshotwithlb','lazynewwithlb']
-    # sensors=[10,20,50,100]
-    # model=['flow_clus']
-    # target = [[1], [4], [5], [8], [9]]
-    # task_list2={}
-    # ctr=1
-    # for i in model:
-    #     for j in sensors:
-    #         if 'clus' not in i:
-    #             for k in strategies:
-    #                 task_list2[ctr] = [k, i, j]
-    #                 ctr += 1
-    #         else:
-    #             for l in target:
-    #                 for k in strategies:
-    #                     task_list2[ctr] = [k, i, j,10,l]
-    #                     ctr += 1
-    # with open("regina_flowclus_instances.pykl","wb") as f:
-    #     pickle.dump(task_list2,f)
-    #
-    # ## LA instances
-    # sensors=[20,50,100]
-    # model=['flow','flow_clus']
-    # target=[[0],[1],[2]]
-    #
-    # task_list2 = {}
-    # ctr = 1
-    # for i in model:
-    #     for j in sensors:
-    #         if 'clus' not in i:
-    #             for k in strategies:
-    #                 task_list2[ctr] = [k, i, j]
-    #                 ctr += 1
-    #         else:
-    #             for l in target:
-    #                 for k in strategies:
-    #                     task_list2[ctr] = [k, i, j,7,l]
-    #                     ctr += 1
-    #
-    #
-    # with open("LA_instances.pykl", "wb") as f:
-    #     pickle.dump(task_list2, f)
-    #
