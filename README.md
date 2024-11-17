@@ -1,4 +1,4 @@
-Instructions for running the codes for the paper titles "An Optimization Approach for Biosurveillance in Wastewater Networks"
+Instructions for running the codes for the paper titles "An Optimization Approach for Biosurveillance in Wastewater Networks". The code and datasets are licensed under MIT License. Please cite our article if you use the code and instances!
 
 **Folder Structure**
 1. /codes/: this contains the main code named "flow_covering_model_code.py".
